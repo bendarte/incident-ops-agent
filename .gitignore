@@ -4,5 +4,7 @@ __pycache__/
 .DS_Store
 .faiss_index/
 tickets.json
+forklarat.md
+
 
 
