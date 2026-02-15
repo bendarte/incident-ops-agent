@@ -1,0 +1,32 @@
+Title: Runbook - Web Server CPU Spike
+Date: 2026-01-20
+Category: Operational Procedures
+Version: 1.2
+
+Description:
+This runbook outlines the procedure for responding to a sudden and sustained CPU spike on production web servers (e.g., above 90% for more than 5 minutes).
+
+Symptoms:
+- Alert: `High CPU Utilization on Web Server (server-X)`
+- Increased application error rates (5xx errors)
+- Slow response times from web services
+
+Action Plan:
+1.  **Verify Alert:** Log into `monitoring.example.com` and confirm CPU utilization for the affected server(s). Check `top` or `htop` on the server via SSH.
+2.  **Check Recent Deployments:** Review recent deployments in `jenkins.example.com` for any changes that might have introduced performance regressions.
+3.  **Inspect Logs:** Examine web server access logs (`/var/log/nginx/access.log` or `/var/log/apache2/access.log`) for unusual traffic patterns or errors. Check application logs (`/var/log/app/app.log`) for internal errors.
+4.  **Restart Service (if necessary):** If the issue persists and no immediate cause is found, attempt to restart the web service.
+    *   `ssh user@server-X 'sudo systemctl restart nginx'` (for Nginx)
+    *   `ssh user@server-X 'sudo systemctl restart apache2'` (for Apache)
+    *   Monitor CPU after restart.
+5.  **Scale Up/Out:** If restart doesn't resolve the issue, or if traffic surge is identified, consider scaling up the affected instance or scaling out by adding more instances.
+    *   Consult with `CloudOps` team for scaling procedures.
+6.  **Incident Creation:** If the issue is severe or prolonged, create a new incident ticket in Jira using the template `WEB-CPU-SPIKE`.
+
+Escalation:
+- If CPU remains high after 30 minutes, escalate to on-call SRE.
+- If web service is unresponsive for more than 10 minutes, escalate to on-call SRE.
+
+Post-Incident:
+- Document findings and actions in the incident ticket.
+- Review and update this runbook if new insights are gained.

@@ -1,0 +1,21 @@
+Title: Incident Report - Database Latency
+Date: 2026-02-15
+Severity: High
+Status: Resolved
+
+Description:
+Starting at 10:00 UTC, users reported significant slowdowns in application response times. Investigation revealed high query latency on the primary production database server. CPU utilization was elevated, and several long-running queries were identified.
+
+Root Cause:
+A new reporting batch job, scheduled to run daily at 09:30 UTC, introduced an unoptimized query that caused a table lock and subsequent resource contention.
+
+Resolution:
+The problematic batch job was temporarily disabled. The unoptimized query was identified and rewritten by the database team. The batch job was re-enabled with the optimized query at 11:30 UTC. Latency returned to normal levels by 11:45 UTC.
+
+Impact:
+Degraded application performance for 1 hour and 45 minutes, affecting all user-facing services. Approximately 15,000 user sessions impacted.
+
+Next Steps:
+1. Review all new batch jobs for query optimization and potential impact on production systems.
+2. Implement better monitoring for long-running queries and database resource utilization.
+3. Conduct a post-incident review meeting by 2026-02-17.
