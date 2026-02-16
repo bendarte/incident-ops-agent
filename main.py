@@ -1,6 +1,7 @@
 # main.py
 import argparse
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -108,6 +109,17 @@ def run_agent_interaction(agent_executor, user_input, chat_history, tool_names_s
         return "[Guardrail Blocked]"
 
     try:
+        deterministic_response = run_deterministic_route(user_input)
+        if deterministic_response is not None:
+            if not output_guardrail(deterministic_response, user_input):
+                print("[Agent]: The deterministic response was blocked by the output guardrail.")
+                deterministic_response = "I cannot provide that information due to a guardrail policy."
+
+            print(f"\n[Agent Final Answer]: {deterministic_response}")
+            print("[Source]: N/A (deterministic tool route)")
+            print("[Confidence]: High (deterministic)")
+            return deterministic_response
+
         formatted_chat_history = []
         for msg in chat_history:
             if isinstance(msg, HumanMessage):
@@ -142,6 +154,32 @@ def run_agent_interaction(agent_executor, user_input, chat_history, tool_names_s
     except Exception as e:
         print(f"[Agent Error]: {e}")
         return f"[Error]: {e}"
+
+
+def run_deterministic_route(user_input: str) -> str | None:
+    """
+    Route clearly deterministic requests directly to tools, bypassing the LLM.
+    """
+    text = (user_input or "").strip()
+    lower_text = text.lower()
+
+    if lower_text.startswith("calculate "):
+        expression = text[len("calculate "):].strip()
+        if expression:
+            print(f"\n[Tool Used]: {calculate.name} with input: {expression}")
+            output = calculate.invoke(expression)
+            print(f"[Tool Output]: {output}")
+            return str(output)
+
+    ticket_id_match = re.search(r"\bINC-\d+\b", text, flags=re.IGNORECASE)
+    if ticket_id_match and "status" in lower_text and "ticket" in lower_text:
+        ticket_id = ticket_id_match.group(0).upper()
+        print(f"\n[Tool Used]: {get_ticket_status.name} with input: {{'ticket_id': '{ticket_id}'}}")
+        output = get_ticket_status.invoke({"ticket_id": ticket_id})
+        print(f"[Tool Output]: {output}")
+        return str(output)
+
+    return None
 
 
 def chat_command(_args):
@@ -181,17 +219,19 @@ def demo_command(_args):
 
 
 def status_command(args):
-    openai_api_key = setup_environment()
-    agent_executor, tool_names_str, format_instructions = initialize_agent(openai_api_key)
-
     if not args.ticket_id:
         print("Usage: python3 main.py status <ticket_id>")
         return
 
-    query = f"What is the status of ticket {args.ticket_id}?"
     print(f"\n--- Checking Status for Ticket ID: {args.ticket_id} ---")
-    print(f"[You]: {query}")
-    run_agent_interaction(agent_executor, query, [], tool_names_str, format_instructions)
+    print(f"[You]: status {args.ticket_id}")
+    ticket_id = args.ticket_id.upper()
+    print(f"\n[Tool Used]: {get_ticket_status.name} with input: {{'ticket_id': '{ticket_id}'}}")
+    output = get_ticket_status.invoke({"ticket_id": ticket_id})
+    print(f"[Tool Output]: {output}")
+    print(f"\n[Agent Final Answer]: {output}")
+    print("[Source]: N/A (deterministic tool route)")
+    print("[Confidence]: High (deterministic)")
 
 
 def main():
