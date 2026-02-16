@@ -156,7 +156,7 @@ Agenten skriver JSON-events till stdout, t.ex.:
 
 Sätt `OPS_LOG_FILE` om du även vill spara events till fil.
 
-## Intervjupitch (kort)
+## Designmotivering
 
 “Jag har separerat deterministiska operationer från LLM-resonemang för att minska risk och öka förutsägbarhet.  
 Muterande actions kräver explicit intent + `confirm=True`.  
