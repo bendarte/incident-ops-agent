@@ -131,6 +131,13 @@ def setup_environment():
         raise ValueError(
             "OPENAI_API_KEY not found. Please set it in your environment or a .env file in the same directory as main.py."
         )
+
+    corpus_dir = Path(__file__).with_name("corpus")
+    if not corpus_dir.exists():
+        raise ValueError(f"Corpus directory not found: {corpus_dir}")
+    if not any(corpus_dir.glob("*.txt")):
+        raise ValueError(f"No .txt files found in corpus directory: {corpus_dir}")
+
     return openai_api_key
 
 

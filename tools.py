@@ -6,7 +6,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import Any, List
 
 from dotenv import load_dotenv
 from langchain.tools import tool
@@ -54,18 +54,29 @@ class RagTool:
             return self._vectorstore
 
         self._ensure_api_key()
-        embeddings = OpenAIEmbeddings()
+        try:
+            embeddings = OpenAIEmbeddings()
+        except Exception as e:
+            raise RuntimeError(
+                "Failed to initialize OpenAI embeddings. Verify OPENAI_API_KEY and model access."
+            ) from e
 
         # Try load
         faiss_path = str(self._index_dir)
         index_file = self._index_dir / "index.faiss"
         store_file = self._index_dir / "index.pkl"
         if index_file.exists() and store_file.exists():
-            self._vectorstore = FAISS.load_local(
-                faiss_path,
-                embeddings,
-                allow_dangerous_deserialization=True,  # FAISS uses pickle
-            )
+            try:
+                self._vectorstore = FAISS.load_local(
+                    faiss_path,
+                    embeddings,
+                    allow_dangerous_deserialization=True,  # FAISS uses pickle
+                )
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to load FAISS index from '{self._index_dir}'. "
+                    "Delete '.faiss_index/' and retry to rebuild."
+                ) from e
             return self._vectorstore
 
         # Build
@@ -74,19 +85,32 @@ class RagTool:
 
         documents = []
         for fp in sorted(self._corpus_dir.glob("*.txt")):
-            loader = TextLoader(str(fp), encoding="utf-8")
-            docs = loader.load()
+            try:
+                loader = TextLoader(str(fp), encoding="utf-8")
+                docs = loader.load()
+            except Exception as e:
+                raise RuntimeError(f"Failed to load corpus file '{fp}'.") from e
             # Ensure source metadata is present
             for d in docs:
                 d.metadata = d.metadata or {}
                 d.metadata["source"] = f"corpus/{fp.name}"
             documents.extend(docs)
 
+        if not documents:
+            raise FileNotFoundError(
+                f"No .txt files found in corpus directory: {self._corpus_dir}"
+            )
+
         splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         splits = splitter.split_documents(documents)
 
-        self._vectorstore = FAISS.from_documents(splits, embeddings)
-        self._vectorstore.save_local(faiss_path)
+        try:
+            self._vectorstore = FAISS.from_documents(splits, embeddings)
+            self._vectorstore.save_local(faiss_path)
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to build or persist FAISS index in '{self._index_dir}'."
+            ) from e
         return self._vectorstore
 
     def search(self, query: str, k: int = 4) -> RagResult:
