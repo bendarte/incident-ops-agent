@@ -1,5 +1,6 @@
 # main.py
 import argparse
+import json
 import os
 import re
 from pathlib import Path
@@ -16,11 +17,106 @@ from guardrails import input_guardrail, output_guardrail
 from tools import retrieve_incident_info, calculate, create_ticket, get_ticket_status, update_ticket_status
 
 
+class ToolPolicyError(Exception):
+    """Raised when a tool call violates policy."""
+
+
+_CURRENT_USER_INPUT = ""
+_ALLOWED_TOOLS = {
+    "retrieve_incident_info",
+    "calculate",
+    "create_ticket",
+    "get_ticket_status",
+    "update_ticket_status",
+}
+_MUTATION_TOOLS = {"create_ticket", "update_ticket_status"}
+_MUTATION_INTENT_HINTS = {
+    "create_ticket": ["create ticket", "new ticket", "open ticket", "create incident", "open incident"],
+    "update_ticket_status": ["update ticket", "change status", "set status", "resolve ticket", "close ticket"],
+}
+_EXFILTRATION_PATTERNS = [
+    "system prompt",
+    "hidden prompt",
+    "reveal your instructions",
+    "api key",
+    "password",
+    "secret",
+    "token",
+]
+
+
+def _policy_refusal(code: str, message: str, tool_name: str) -> str:
+    return json.dumps(
+        {
+            "type": "policy_refusal",
+            "code": code,
+            "message": message,
+            "tool": tool_name,
+            "action": "blocked",
+        }
+    )
+
+
+def _has_explicit_intent(user_input: str, tool_name: str) -> bool:
+    hints = _MUTATION_INTENT_HINTS.get(tool_name, [])
+    lower = (user_input or "").lower()
+    return any(h in lower for h in hints)
+
+
+def _confirm_is_true(tool_input: str) -> bool:
+    text = (tool_input or "").lower()
+    return (
+        '"confirm": true' in text
+        or "'confirm': true" in text
+        or "confirm=true" in text
+        or '"confirm":true' in text
+        or "'confirm':true" in text
+    )
+
+
+def enforce_tool_policy(tool_name: str, tool_input: str, user_input: str) -> None:
+    if tool_name not in _ALLOWED_TOOLS:
+        raise ToolPolicyError(
+            _policy_refusal("TOOL_NOT_ALLOWED", f"Tool '{tool_name}' is not in the allowlist.", tool_name)
+        )
+
+    combined_text = f"{user_input}\n{tool_input}".lower()
+    for pattern in _EXFILTRATION_PATTERNS:
+        if pattern in combined_text:
+            raise ToolPolicyError(
+                _policy_refusal(
+                    "EXFILTRATION_ATTEMPT",
+                    "Request appears to target prompts, secrets, or credentials.",
+                    tool_name,
+                )
+            )
+
+    if tool_name in _MUTATION_TOOLS and not _has_explicit_intent(user_input, tool_name):
+        raise ToolPolicyError(
+            _policy_refusal(
+                "MUTATION_INTENT_UNCLEAR",
+                "Mutation tool call blocked because user intent is not explicit.",
+                tool_name,
+            )
+        )
+
+    if tool_name in _MUTATION_TOOLS and not _confirm_is_true(tool_input):
+        raise ToolPolicyError(
+            _policy_refusal(
+                "CONFIRMATION_REQUIRED",
+                "Mutation tool call requires confirm=True.",
+                tool_name,
+            )
+        )
+
+
 class ToolUsageLogger(BaseCallbackHandler):
     """Callback handler to log tool usage in a clear format."""
 
     def on_tool_start(self, serialized, input_str, **kwargs):
-        print(f"\n[Tool Used]: {serialized.get('name')} with input: {input_str}")
+        tool_name = serialized.get("name")
+        enforce_tool_policy(tool_name=tool_name, tool_input=str(input_str), user_input=_CURRENT_USER_INPUT)
+        print(f"\n[Tool Used]: {tool_name} with input: {input_str}")
 
     def on_tool_end(self, output, **kwargs):
         print(f"[Tool Output]: {output}")
@@ -104,11 +200,14 @@ def extract_sources_from_tool_output(tool_output: str) -> list[str]:
 
 
 def run_agent_interaction(agent_executor, user_input, chat_history, tool_names_str, format_instructions):
+    global _CURRENT_USER_INPUT
+
     if not input_guardrail(user_input):
         print("[Agent]: Your request was blocked by the input guardrail. Please refine your query.")
         return "[Guardrail Blocked]"
 
     try:
+        _CURRENT_USER_INPUT = user_input
         deterministic_response = run_deterministic_route(user_input)
         if deterministic_response is not None:
             if not output_guardrail(deterministic_response, user_input):
@@ -151,6 +250,13 @@ def run_agent_interaction(agent_executor, user_input, chat_history, tool_names_s
 
         return agent_response
 
+    except ToolPolicyError as e:
+        refusal = str(e)
+        print(f"\n[Agent Final Answer]: {refusal}")
+        print("[Source]: N/A (policy gate)")
+        print("[Confidence]: High (policy enforcement)")
+        return refusal
+
     except Exception as e:
         print(f"[Agent Error]: {e}")
         return f"[Error]: {e}"
@@ -166,6 +272,7 @@ def run_deterministic_route(user_input: str) -> str | None:
     if lower_text.startswith("calculate "):
         expression = text[len("calculate "):].strip()
         if expression:
+            enforce_tool_policy(tool_name=calculate.name, tool_input=expression, user_input=text)
             print(f"\n[Tool Used]: {calculate.name} with input: {expression}")
             output = calculate.invoke(expression)
             print(f"[Tool Output]: {output}")
@@ -174,8 +281,10 @@ def run_deterministic_route(user_input: str) -> str | None:
     ticket_id_match = re.search(r"\bINC-\d+\b", text, flags=re.IGNORECASE)
     if ticket_id_match and "status" in lower_text and "ticket" in lower_text:
         ticket_id = ticket_id_match.group(0).upper()
+        payload = {"ticket_id": ticket_id}
+        enforce_tool_policy(tool_name=get_ticket_status.name, tool_input=json.dumps(payload), user_input=text)
         print(f"\n[Tool Used]: {get_ticket_status.name} with input: {{'ticket_id': '{ticket_id}'}}")
-        output = get_ticket_status.invoke({"ticket_id": ticket_id})
+        output = get_ticket_status.invoke(payload)
         print(f"[Tool Output]: {output}")
         return str(output)
 
@@ -223,15 +332,23 @@ def status_command(args):
         print("Usage: python3 main.py status <ticket_id>")
         return
 
-    print(f"\n--- Checking Status for Ticket ID: {args.ticket_id} ---")
-    print(f"[You]: status {args.ticket_id}")
-    ticket_id = args.ticket_id.upper()
-    print(f"\n[Tool Used]: {get_ticket_status.name} with input: {{'ticket_id': '{ticket_id}'}}")
-    output = get_ticket_status.invoke({"ticket_id": ticket_id})
-    print(f"[Tool Output]: {output}")
-    print(f"\n[Agent Final Answer]: {output}")
-    print("[Source]: N/A (deterministic tool route)")
-    print("[Confidence]: High (deterministic)")
+    try:
+        print(f"\n--- Checking Status for Ticket ID: {args.ticket_id} ---")
+        print(f"[You]: status {args.ticket_id}")
+        ticket_id = args.ticket_id.upper()
+        payload = {"ticket_id": ticket_id}
+        enforce_tool_policy(tool_name=get_ticket_status.name, tool_input=json.dumps(payload), user_input=f"status {ticket_id}")
+        print(f"\n[Tool Used]: {get_ticket_status.name} with input: {{'ticket_id': '{ticket_id}'}}")
+        output = get_ticket_status.invoke(payload)
+        print(f"[Tool Output]: {output}")
+        print(f"\n[Agent Final Answer]: {output}")
+        print("[Source]: N/A (deterministic tool route)")
+        print("[Confidence]: High (deterministic)")
+    except ToolPolicyError as e:
+        refusal = str(e)
+        print(f"\n[Agent Final Answer]: {refusal}")
+        print("[Source]: N/A (policy gate)")
+        print("[Confidence]: High (policy enforcement)")
 
 
 def main():
