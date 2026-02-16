@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 import ast
-import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List
+from typing import List
 
 from dotenv import load_dotenv
 from langchain.tools import tool
@@ -15,6 +14,7 @@ from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from pydantic import BaseModel, Field
+from ticket_adapter import MockTicketAdapter
 
 load_dotenv()
 
@@ -186,100 +186,37 @@ def calculate(expression: str) -> str:
         return f"Error evaluating expression: {e}"
 
 # -----------------------------
-# Mock Ticket API (with confirmation gate + optional persistence)
+# Ticket tools via adapter abstraction (mock backend by default)
 # -----------------------------
 
 _TICKETS_PATH = Path(__file__).parent / "tickets.json"
+_ticket_adapter = MockTicketAdapter(storage_path=_TICKETS_PATH)
 
-class MockTicketAPI:
-    def __init__(self) -> None:
-        self.tickets: dict[str, dict[str, Any]] = {}
-        self.ticket_id_counter = 1
-        self._load()
+@tool
+def create_ticket(title: str, description: str, severity: str = "Medium", confirm: bool = False) -> str:
+    """
+    Creates a new incident ticket.
+    NOTE: Requires confirm=True to actually create the ticket.
+    """
+    return _ticket_adapter.create_ticket(title=title, description=description, severity=severity, confirm=confirm)
 
-    def _load(self) -> None:
-        if _TICKETS_PATH.exists():
-            try:
-                data = json.loads(_TICKETS_PATH.read_text(encoding="utf-8"))
-                self.tickets = data.get("tickets", {})
-                self.ticket_id_counter = int(data.get("ticket_id_counter", 1))
-            except Exception:
-                # If corrupted, start fresh (demo project)
-                self.tickets = {}
-                self.ticket_id_counter = 1
 
-    def _save(self) -> None:
-        payload = {
-            "ticket_id_counter": self.ticket_id_counter,
-            "tickets": self.tickets,
-        }
-        _TICKETS_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+@tool
+def get_ticket_status(ticket_id: str) -> str:
+    """
+    Retrieves ticket status/details.
+    """
+    return _ticket_adapter.get_ticket_status(ticket_id=ticket_id)
 
-    @tool
-    def create_ticket(self, title: str, description: str, severity: str = "Medium", confirm: bool = False) -> str:
-        """
-        Creates a new incident ticket.
-        NOTE: Requires confirm=True to actually create the ticket.
-        """
-        if not confirm:
-            return (
-                "Confirmation required. Re-run create_ticket with confirm=True after you verify:\n"
-                f"- title='{title}'\n- severity='{severity}'\n"
-                "This prevents accidental ticket creation."
-            )
 
-        new_ticket_id = f"INC-{self.ticket_id_counter}"
-        self.tickets[new_ticket_id] = {
-            "title": title,
-            "description": description,
-            "severity": severity,
-            "status": "Open",
-        }
-        self.ticket_id_counter += 1
-        self._save()
-        return f"Ticket '{new_ticket_id}' created successfully with title: '{title}' and severity: '{severity}'."
+@tool
+def update_ticket_status(ticket_id: str, new_status: str, confirm: bool = False) -> str:
+    """
+    Updates ticket status.
+    NOTE: Requires confirm=True to apply the update.
+    """
+    return _ticket_adapter.update_ticket_status(ticket_id=ticket_id, new_status=new_status, confirm=confirm)
 
-    @tool
-    def get_ticket_status(self, ticket_id: str) -> str:
-        """
-        Retrieves ticket status/details.
-        """
-        ticket = self.tickets.get(ticket_id)
-        if not ticket:
-            return f"Error: Ticket '{ticket_id}' not found."
-        return (
-            f"Ticket ID: {ticket_id}\n"
-            f"Title: {ticket['title']}\n"
-            f"Description: {ticket['description']}\n"
-            f"Severity: {ticket['severity']}\n"
-            f"Status: {ticket['status']}"
-        )
 
-    @tool
-    def update_ticket_status(self, ticket_id: str, new_status: str, confirm: bool = False) -> str:
-        """
-        Updates ticket status.
-        NOTE: Requires confirm=True to apply the update.
-        """
-        valid = ["Open", "In Progress", "Resolved", "Closed", "On Hold"]
-        if new_status not in valid:
-            return f"Error: Invalid status '{new_status}'. Valid statuses are: {', '.join(valid)}."
-
-        ticket = self.tickets.get(ticket_id)
-        if not ticket:
-            return f"Error: Ticket '{ticket_id}' not found."
-
-        if not confirm:
-            return (
-                "Confirmation required. Re-run update_ticket_status with confirm=True after you verify:\n"
-                f"- ticket_id='{ticket_id}'\n- new_status='{new_status}'"
-            )
-
-        ticket["status"] = new_status
-        self._save()
-        return f"Ticket '{ticket_id}' status updated to '{new_status}'."
-
-mock_ticket_api_instance = MockTicketAPI()
-create_ticket = mock_ticket_api_instance.create_ticket
-get_ticket_status = mock_ticket_api_instance.get_ticket_status
-update_ticket_status = mock_ticket_api_instance.update_ticket_status
+def reset_ticket_store() -> None:
+    _ticket_adapter.reset_store()
