@@ -7,6 +7,25 @@ Detta repo demonstrerar en produktionsnära AI-agent för Incident/Ops med två 
 
 Målet är en stabil och förklarbar demo, inte maximal komplexitet.
 
+## Demo-videor (viktigast)
+
+Det finns två färdiga skärmfilmer i `demos/`:
+
+- `demos/osman_demo_2.mov` = repeterbar demo (`python main.py demo --reset-tickets`)
+- `demos/Osman_demo_1.mov` = live-chat (`python main.py chat`)
+
+Så här ser du dem lokalt från GitHub:
+
+1. Gå till mappen `demos/` i repot.
+2. Klicka på videofilen.
+3. Klicka `Download` och öppna filen på din dator.
+
+Varför Python-kommandon (`python main.py chat` och `python main.py demo --reset-tickets`)?
+
+- Projektet är byggt som en enkel CLI-app i Python (`main.py`) för att vara snabbt att köra inför demo/intervju.
+- `chat` visar live-interaktion steg för steg.
+- `demo --reset-tickets` ger en repeterbar och stabil körning med samma startläge varje gång.
+
 ## Arkitektur i korthet
 
 - `main.py`: CLI, routing, policy enforcement och agent-exekvering.
@@ -85,8 +104,8 @@ Vad filmerna visar:
 
 Länkar till filmer:
 
-- Demo-video: `demos/Osman_demo_1.mov`
-- Chat-video: `demos/osman_demo_2.mov`
+- Demo-video: `demos/osman_demo_2.mov`
+- Chat-video: `demos/Osman_demo_1.mov`
 
 Notering om GitHub README:
 
