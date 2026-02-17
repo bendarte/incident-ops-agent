@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # main.py
 import argparse
 import json
