@@ -11,8 +11,8 @@ Målet är en stabil och förklarbar demo, inte maximal komplexitet.
 
 Det finns två färdiga skärmfilmer i `demos/`:
 
-- `demos/osman_demo_2.mov` = repeterbar demo (`python main.py demo --reset-tickets`)
-- `demos/Osman_demo_1.mov` = live-chat (`python main.py chat`)
+- `demos/osman_demo_2.mov` = repeterbar demo (`python3 main.py demo --reset-tickets`)
+- `demos/Osman_demo_1.mov` = live-chat (`python3 main.py chat`)
 
 Så här ser du dem lokalt från GitHub:
 
@@ -20,7 +20,7 @@ Så här ser du dem lokalt från GitHub:
 2. Klicka på videofilen.
 3. Klicka `Download` och öppna filen på din dator.
 
-Varför Python-kommandon (`python main.py chat` och `python main.py demo --reset-tickets`)?
+Varför Python-kommandon (`python3 main.py chat` och `python3 main.py demo --reset-tickets`)?
 
 - Projektet är byggt som en enkel CLI-app i Python (`main.py`) för att vara snabbt att köra inför demo/intervju.
 - `chat` visar live-interaktion steg för steg.
@@ -54,6 +54,8 @@ Det gör det enkelt att byta till Jira/ServiceNow senare utan att röra prompt/r
 
 ## Kom igång
 
+Krav: Python 3.9+ (testat med 3.12).
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -72,27 +74,27 @@ OPENAI_MODEL=gpt-4o-mini
 Interaktiv chat:
 
 ```bash
-python main.py chat
+python3 main.py chat
 ```
 
 Deterministisk statusväg:
 
 ```bash
-python main.py status INC-1
+python3 main.py status INC-1
 ```
 
 Repeterbar demo (rekommenderad inför intervju):
 
 ```bash
-python main.py demo --reset-tickets
+python3 main.py demo --reset-tickets
 ```
 
 ## Skärmfilmsdemo (delad)
 
 Två skärmfilmer har delats för att visa både repeterbar demo och live-chat:
 
-1. Demo-video (`python main.py demo --reset-tickets`)
-2. Chat-video (`python main.py chat`)
+1. Demo-video (`python3 main.py demo --reset-tickets`)
+2. Chat-video (`python3 main.py chat`)
 
 Vad filmerna visar:
 

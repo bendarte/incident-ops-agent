@@ -18,7 +18,11 @@ def emit_event(event: str, **fields: Any) -> None:
 
     log_file = os.getenv("OPS_LOG_FILE", "").strip()
     if log_file:
-        path = Path(log_file)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
+        try:
+            path = Path(log_file)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+        except Exception as e:
+            # Best-effort file logging must not crash the agent path.
+            print(f"[EventWarning]: failed to write OPS_LOG_FILE='{log_file}': {e}")
