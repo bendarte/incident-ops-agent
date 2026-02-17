@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import re
+import unicodedata
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -316,10 +317,16 @@ def run_deterministic_route(user_input: str) -> str | None:
     """
     text = (user_input or "").strip()
     lower_text = text.lower()
+    folded_text = "".join(
+        ch for ch in unicodedata.normalize("NFKD", lower_text) if not unicodedata.combining(ch)
+    )
 
-    if lower_text.startswith("calculate ") or lower_text.startswith("beräkna "):
-        prefix = "calculate " if lower_text.startswith("calculate ") else "beräkna "
-        expression = text[len(prefix):].strip()
+    calc_match = re.match(r"^\s*(calculate|ber[aä]kna)\s*:?\s*(.+?)\s*$", text, flags=re.IGNORECASE)
+    if not calc_match:
+        calc_match = re.match(r"^\s*(calculate|berakna)\s*:?\s*(.+?)\s*$", folded_text, flags=re.IGNORECASE)
+
+    if calc_match:
+        expression = calc_match.group(2).strip()
         if expression:
             enforce_tool_policy(tool_name=calculate.name, tool_input=expression, user_input=text)
             print(f"\n[Verktyg använt]: {calculate.name} med input: {expression}")
