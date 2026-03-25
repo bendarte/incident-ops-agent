@@ -25,6 +25,14 @@ Målet är en stabil, förklarbar och demo-vänlig agent.
 - Interaktiv chat: `python3 main.py chat`
 - Lokala skärmfilmer: `demos/osman_demo_2.mov`, `demos/Osman_demo_1.mov`
 
+Rekommenderad demoordning i intervju:
+
+1. RAG med källor
+2. Deterministisk beräkning
+3. Guardrail-blockering
+4. Skapa ärende med `confirm=True`
+5. Uppdatera ärende med deterministisk route
+
 ## Varför det här är relevant för AI-roller
 
 Det här projektet visar praktiska delar som ofta efterfrågas i AI Engineer/Applied AI-roller:
@@ -91,6 +99,15 @@ OPS_MAX_EXECUTION_SECONDS=20
 python3 main.py chat
 python3 main.py status INC-1
 python3 main.py demo --reset-tickets
+```
+
+Exempel på prompts:
+
+```text
+Vad säger runbooken om CPU-spikar på webbservrar?
+Beräkna (18 + 24 + 36) / 3
+Skapa ett nytt ärende. Titel: "DB latency", Beskrivning: "Slow queries", Severity: "High". confirm=True.
+Uppdatera ärende INC-1. Ny status: "Resolved". confirm=True.
 ```
 
 ## Docker
