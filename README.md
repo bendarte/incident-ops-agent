@@ -1,18 +1,29 @@
 # Incident/Ops CLI Agent (LangChain ReAct + Guardrails)
 
-Portfolioprojekt för Incident/Ops med två kontrollvägar:
+Portfolioprojekt för Incident/Ops byggt för att visa kontrollerad agentdesign, inte bara "en chatbot med tools".
+
+Agenten använder två kontrollvägar:
 
 - Deterministisk routing för enkla och säkra operationer (`calculate`, `status INC-x`, explicit ticket update med `confirm=True`)
 - LLM-baserad ReAct-agent för resonemang och verktygsanvändning
 
 Målet är en stabil, förklarbar och demo-vänlig agent.
 
-## Demo
+## Vad projektet visar
 
-- Live demo: https://osmanen.vercel.app
+- hybrid kontrollmodell: deterministisk routing för låg-risk/high-confidence actions, LLM för resonemang
+- guardrails på input, output och tool policy
+- adapter-baserad ticket backend som kan bytas mot Jira/ServiceNow senare
+- lokal RAG över incident/runbook-corpus med källor i slutsvaret
+- strukturerad observability via JSON-events
+- testbar design med `pytest`
+
+## Demo och material
+
+- Portfolio-sida som refererar projektet: https://osmanen.vercel.app
 - Repeterbar CLI-demo: `python3 main.py demo --reset-tickets`
 - Interaktiv chat: `python3 main.py chat`
-- Skärmfilmer: `demos/osman_demo_2.mov`, `demos/Osman_demo_1.mov`
+- Lokala skärmfilmer: `demos/osman_demo_2.mov`, `demos/Osman_demo_1.mov`
 
 ## Varför det här är relevant för AI-roller
 
@@ -34,6 +45,16 @@ Kort sagt: den demonstrerar inte bara “att modellen svarar”, utan hur man by
 - `guardrails.py`: input/output-skydd.
 - `observability.py`: strukturerade JSON-events.
 
+Förenklad kontrollmodell:
+
+```text
+User input
+  -> input_guardrail
+  -> deterministic route?
+       -> yes: tool invoke -> output_guardrail -> final answer
+       -> no: ReAct agent -> tool policy via callback -> output_guardrail -> final answer
+```
+
 ## Kontrollflöde
 
 1. Input guardrail.
@@ -51,9 +72,10 @@ Krav: Python 3.9+.
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
+cp sample.env .env
 ```
 
-Skapa `.env` i projektroten:
+Uppdatera sedan `.env` i projektroten:
 
 ```env
 OPENAI_API_KEY=...
@@ -93,6 +115,13 @@ docker run --rm \
 ```
 
 GitHub Actions kör samma `pytest -q` på pushes till `main` och på pull requests.
+
+## Begränsningar
+
+- mockad ticket-backend, inte riktig ITSM-integration
+- ingen live webbtjänst; detta är i första hand ett CLI-projekt
+- guardrails är avsiktligt lätta och läsbara, inte en full policy-motor
+- lokal FAISS-cache använder pickle och ska bara laddas från betrodd lokal källa
 
 ## Observability
 
