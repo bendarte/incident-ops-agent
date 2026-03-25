@@ -66,8 +66,8 @@ def policy_refusal(code: str, message: str, tool_name: str) -> str:
 
 def has_explicit_intent(user_input: str, tool_name: str) -> bool:
     hints = MUTATION_INTENT_HINTS.get(tool_name, [])
-    lower = normalize_text(user_input)
-    return any(h in lower for h in hints)
+    normalized_input = normalize_text(user_input)
+    return any(normalize_text(hint) in normalized_input for hint in hints)
 
 
 def parse_structured_tool_input(tool_input: Any) -> dict[str, Any] | None:

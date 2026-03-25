@@ -49,3 +49,46 @@ def test_deterministic_route_updates_ticket_status(monkeypatch):
     assert _DummyUpdateTicketTool.calls == [
         {"ticket_id": "INC-7", "new_status": "Resolved", "confirm": True}
     ]
+
+
+class _DummyCreateTicketTool:
+    name = "create_ticket"
+    calls = []
+
+    @classmethod
+    def invoke(cls, payload):
+        cls.calls.append(payload)
+        return f"Ticket 'INC-1' created successfully with title: '{payload['title']}'."
+
+
+def test_deterministic_route_creates_ticket_from_swedish_prompt(monkeypatch):
+    _DummyCreateTicketTool.calls = []
+    monkeypatch.setattr(main, "enforce_tool_policy", lambda **kwargs: None)
+    monkeypatch.setattr(main, "create_ticket", _DummyCreateTicketTool)
+
+    result = main.run_deterministic_route(
+        'Skapa ett nytt ärende. Titel: "Kritisk webbserver", Beskrivning: "Webbservern är helt nere", Severity: "Critical". confirm=True.'
+    )
+
+    assert "INC-1" in result
+    assert _DummyCreateTicketTool.calls == [
+        {
+            "title": "Kritisk webbserver",
+            "description": "Webbservern är helt nere",
+            "severity": "Critical",
+            "confirm": True,
+        }
+    ]
+
+
+def test_deterministic_route_updates_ticket_status_from_swedish_prompt(monkeypatch):
+    _DummyUpdateTicketTool.calls = []
+    monkeypatch.setattr(main, "enforce_tool_policy", lambda **kwargs: None)
+    monkeypatch.setattr(main, "update_ticket_status", _DummyUpdateTicketTool)
+
+    result = main.run_deterministic_route('Uppdatera ärende INC-1. Ny status: "Resolved". confirm=True.')
+
+    assert "INC-1" in result
+    assert _DummyUpdateTicketTool.calls == [
+        {"ticket_id": "INC-1", "new_status": "Resolved", "confirm": True}
+    ]
