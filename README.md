@@ -70,11 +70,29 @@ python3 main.py status INC-1
 python3 main.py demo --reset-tickets
 ```
 
+## Docker
+
+Bygg en enkel lokal image:
+
+```bash
+docker build -t incident-ops-agent .
+```
+
+Kör sedan valfritt CLI-kommando, till exempel demo:
+
+```bash
+docker run --rm \
+  --env-file .env \
+  incident-ops-agent python main.py demo --reset-tickets
+```
+
 ## Test
 
 ```bash
 .venv/bin/pytest -q
 ```
+
+GitHub Actions kör samma `pytest -q` på pushes till `main` och på pull requests.
 
 ## Observability
 

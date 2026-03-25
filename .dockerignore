@@ -1,0 +1,11 @@
+.git
+.github
+.venv
+__pycache__
+.pytest_cache
+.faiss_index
+.DS_Store
+.env
+tickets.json
+demos
+forklarat.md
