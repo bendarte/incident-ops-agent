@@ -132,7 +132,17 @@ docker run --rm \
 .venv/bin/pytest -q
 ```
 
-GitHub Actions kör samma `pytest -q` på pushes till `main` och på pull requests.
+## Kvalitet
+
+Installera utvecklarverktygen om du vill köra samma kontroller lokalt som i CI:
+
+```bash
+python -m pip install -r requirements-dev.txt
+ruff check .
+.venv/bin/pytest -q
+```
+
+GitHub Actions kör både `ruff check .` och `pytest -q` på pushes till `main` och på pull requests.
 
 ## Begränsningar
 

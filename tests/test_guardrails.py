@@ -1,6 +1,5 @@
 from guardrails import input_guardrail, output_guardrail
 
-
 # --- Befintliga tester ---
 
 def test_input_guardrail_blocks_sensitive_keyword():

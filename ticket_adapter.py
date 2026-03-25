@@ -5,7 +5,6 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
-
 VALID_TICKET_STATUSES = ["Open", "In Progress", "Resolved", "Closed", "On Hold"]
 
 

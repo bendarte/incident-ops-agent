@@ -21,7 +21,14 @@ from guardrails import input_guardrail, normalize_text, output_guardrail
 from observability import emit_event
 from policy import ToolPolicyError, confirm_is_true, enforce_tool_policy, has_explicit_intent
 from ticket_adapter import VALID_TICKET_STATUSES
-from tools import retrieve_incident_info, calculate, create_ticket, get_ticket_status, reset_ticket_store, update_ticket_status
+from tools import (
+    calculate,
+    create_ticket,
+    get_ticket_status,
+    reset_ticket_store,
+    retrieve_incident_info,
+    update_ticket_status,
+)
 
 
 @dataclass(frozen=True)

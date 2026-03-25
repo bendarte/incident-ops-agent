@@ -8,12 +8,13 @@ from pathlib import Path
 from typing import List
 
 from dotenv import load_dotenv
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.tools import tool
 from langchain_community.document_loaders import TextLoader
 from langchain_community.vectorstores import FAISS
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from pydantic import BaseModel, Field
+
 from ticket_adapter import MockTicketAdapter
 
 load_dotenv()
