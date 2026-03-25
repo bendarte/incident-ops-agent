@@ -2,7 +2,6 @@ from __future__ import annotations
 
 # main.py
 import argparse
-import ast
 import json
 import os
 import re
@@ -17,152 +16,11 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 
-from guardrails import (
-    PROMPT_INJECTION_PATTERNS,
-    TOOL_EXFILTRATION_PATTERNS,
-    input_guardrail,
-    normalize_text,
-    output_guardrail,
-)
+from guardrails import input_guardrail, normalize_text, output_guardrail
 from observability import emit_event
+from policy import ToolPolicyError, confirm_is_true, enforce_tool_policy, has_explicit_intent
 from ticket_adapter import VALID_TICKET_STATUSES
 from tools import retrieve_incident_info, calculate, create_ticket, get_ticket_status, reset_ticket_store, update_ticket_status
-
-
-class ToolPolicyError(Exception):
-    """Raised when a tool call violates policy."""
-
-
-_ALLOWED_TOOLS = {
-    "retrieve_incident_info",
-    "calculate",
-    "create_ticket",
-    "get_ticket_status",
-    "update_ticket_status",
-}
-_MUTATION_TOOLS = {"create_ticket", "update_ticket_status"}
-_MUTATION_INTENT_HINTS = {
-    "create_ticket": [
-        "create ticket",
-        "new ticket",
-        "open ticket",
-        "create incident",
-        "open incident",
-        "skapa ärende",
-        "öppna ärende",
-        "skapa incident",
-        "skapa ett nytt ärende",
-        "skapa nytt ärende",
-    ],
-    "update_ticket_status": [
-        "update ticket",
-        "change status",
-        "set status",
-        "resolve ticket",
-        "close ticket",
-        "update incident",
-        "uppdatera ärende",
-        "ändra status",
-        "sätt status",
-        "stäng ärende",
-        "lös ärende",
-        "uppdatera incident",
-    ],
-}
-
-
-def _policy_refusal(code: str, message: str, tool_name: str) -> str:
-    return json.dumps(
-        {
-            "type": "policy_refusal",
-            "code": code,
-            "message": message,
-            "tool": tool_name,
-            "action": "blocked",
-        }
-    )
-
-
-def _has_explicit_intent(user_input: str, tool_name: str) -> bool:
-    hints = _MUTATION_INTENT_HINTS.get(tool_name, [])
-    lower = normalize_text(user_input)
-    return any(h in lower for h in hints)
-
-
-def _parse_structured_tool_input(tool_input):
-    if isinstance(tool_input, dict):
-        return tool_input
-
-    if not isinstance(tool_input, str):
-        return None
-
-    text = tool_input.strip()
-    if not text:
-        return None
-
-    for parser in (json.loads, ast.literal_eval):
-        try:
-            parsed = parser(text)
-        except Exception:
-            continue
-        if isinstance(parsed, dict):
-            return parsed
-
-    return None
-
-
-def _confirm_is_true(tool_input) -> bool:
-    if isinstance(tool_input, bool):
-        return tool_input
-
-    parsed = _parse_structured_tool_input(tool_input)
-    if parsed is not None:
-        confirm_value = parsed.get("confirm")
-        if isinstance(confirm_value, bool):
-            return confirm_value
-        if isinstance(confirm_value, str):
-            return normalize_text(confirm_value) == "true"
-
-    text = normalize_text(str(tool_input or ""))
-    match = re.search(r"\bconfirm\s*[:=]\s*(true|false)\b", text)
-    return bool(match and match.group(1) == "true")
-
-
-def enforce_tool_policy(tool_name: str, tool_input: str, user_input: str) -> None:
-    if tool_name not in _ALLOWED_TOOLS:
-        raise ToolPolicyError(
-            _policy_refusal("TOOL_NOT_ALLOWED", f"Tool '{tool_name}' is not in the allowlist.", tool_name)
-        )
-
-    combined_text = normalize_text(f"{user_input}\n{tool_input}")
-    exfiltration_patterns = TOOL_EXFILTRATION_PATTERNS + PROMPT_INJECTION_PATTERNS
-    for pattern in exfiltration_patterns:
-        if pattern in combined_text:
-            raise ToolPolicyError(
-                _policy_refusal(
-                    "EXFILTRATION_ATTEMPT",
-                    "Request appears to target prompts, secrets, or credentials.",
-                    tool_name,
-                )
-            )
-
-    if tool_name in _MUTATION_TOOLS and not _has_explicit_intent(user_input, tool_name):
-        raise ToolPolicyError(
-            _policy_refusal(
-                "MUTATION_INTENT_UNCLEAR",
-                "Mutation tool call blocked because user intent is not explicit.",
-                tool_name,
-            )
-        )
-
-    if tool_name in _MUTATION_TOOLS and not _confirm_is_true(tool_input):
-        raise ToolPolicyError(
-            _policy_refusal(
-                "CONFIRMATION_REQUIRED",
-                "Mutation tool call requires confirm=True.",
-                tool_name,
-            )
-        )
 
 
 class ToolUsageLogger(BaseCallbackHandler):
@@ -393,7 +251,7 @@ def run_deterministic_route(user_input: str) -> str | None:
             emit_event("tool_end", tool=calculate.name, output=str(output), route="deterministic")
             return str(output)
 
-    create_intent = _has_explicit_intent(text, create_ticket.name)
+    create_intent = has_explicit_intent(text, create_ticket.name)
     if create_intent:
         title_match = re.search(r'(?:title|titel)\s*:\s*"([^"]+)"', text, flags=re.IGNORECASE)
         description_match = re.search(r'(?:description|beskrivning)\s*:\s*"([^"]+)"', text, flags=re.IGNORECASE)
@@ -404,7 +262,7 @@ def run_deterministic_route(user_input: str) -> str | None:
                 "title": title_match.group(1).strip(),
                 "description": description_match.group(1).strip(),
                 "severity": severity_match.group(1).strip() if severity_match else "Medium",
-                "confirm": _confirm_is_true(text),
+                "confirm": confirm_is_true(text),
             }
             enforce_tool_policy(tool_name=create_ticket.name, tool_input=json.dumps(payload), user_input=text)
             print(f"\n[Verktyg använt]: {create_ticket.name} med input: {payload}")
@@ -415,7 +273,7 @@ def run_deterministic_route(user_input: str) -> str | None:
             return str(output)
 
     ticket_id_match = re.search(r"\bINC-\d+\b", text, flags=re.IGNORECASE)
-    if ticket_id_match and _has_explicit_intent(text, update_ticket_status.name):
+    if ticket_id_match and has_explicit_intent(text, update_ticket_status.name):
         ticket_id = ticket_id_match.group(0).upper()
         statuses_pattern = "|".join(sorted((re.escape(status) for status in VALID_TICKET_STATUSES), key=len, reverse=True))
         status_match = re.search(
@@ -441,7 +299,7 @@ def run_deterministic_route(user_input: str) -> str | None:
             payload = {
                 "ticket_id": ticket_id,
                 "new_status": new_status,
-                "confirm": _confirm_is_true(text),
+                "confirm": confirm_is_true(text),
             }
             enforce_tool_policy(tool_name=update_ticket_status.name, tool_input=json.dumps(payload), user_input=text)
             print(f"\n[Verktyg använt]: {update_ticket_status.name} med input: {payload}")

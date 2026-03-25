@@ -40,6 +40,7 @@ Kort sagt: den demonstrerar inte bara “att modellen svarar”, utan hur man by
 ## Arkitektur
 
 - `main.py`: CLI, routing, policy enforcement och agent-exekvering.
+- `policy.py`: tool policy, intent-checkar och confirm-regler.
 - `tools.py`: verktyg för RAG, kalkyl och ticket-operationer.
 - `ticket_adapter.py`: `TicketAdapter` + `MockTicketAdapter` (`tickets.json`).
 - `guardrails.py`: input/output-skydd.
