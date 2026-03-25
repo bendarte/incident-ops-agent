@@ -57,16 +57,16 @@ class _FakeAgentExecutor:
         callbacks = config.get("callbacks", [])
         assert len(callbacks) == 1
         logger = callbacks[0]
-        logger.on_tool_start({"name": "calculate"}, "2 + 2")
-        logger.on_tool_end("4")
-        return {"output": "4"}
+        logger.on_tool_start({"name": "retrieve_incident_info"}, "runbook cpu spike")
+        logger.on_tool_end("CPU spike guidance\n\n[SOURCES]: corpus/runbook_web_cpu_spike.txt")
+        return {"output": "Use the CPU spike runbook."}
 
 
 def test_run_agent_interaction_passes_request_scoped_callback(monkeypatch):
     events = []
     monkeypatch.setattr(main, "emit_event", lambda event, **fields: events.append((event, fields)))
     monkeypatch.setattr(main, "input_guardrail", lambda _prompt: True)
-    monkeypatch.setattr(main, "output_guardrail", lambda output, _prompt: output == "4")
+    monkeypatch.setattr(main, "output_guardrail", lambda output, _prompt: output == "Use the CPU spike runbook.")
 
     result = main.run_agent_interaction(
         agent_executor=_FakeAgentExecutor(),
@@ -76,5 +76,26 @@ def test_run_agent_interaction_passes_request_scoped_callback(monkeypatch):
         format_instructions="",
     )
 
-    assert result == "4"
+    assert result == "Use the CPU spike runbook."
     assert ("route_selected", {"route": "llm"}) in events
+    assert (
+        "agent_response",
+        {
+            "route": "llm",
+            "sources": ["corpus/runbook_web_cpu_spike.txt"],
+            "tools": ["retrieve_incident_info"],
+        },
+    ) in events
+
+
+def test_extract_sources_from_tool_output_returns_unique_sources():
+    logger = main.ToolUsageLogger(user_input="runbook please")
+    logger.on_tool_start({"name": "retrieve_incident_info"}, "cpu")
+    logger.on_tool_end(
+        "Runbook body\n\n[SOURCES]: corpus/runbook_web_cpu_spike.txt, corpus/runbook_web_cpu_spike.txt, corpus/incident_db_latency.txt"
+    )
+
+    assert logger.sources == [
+        "corpus/runbook_web_cpu_spike.txt",
+        "corpus/incident_db_latency.txt",
+    ]

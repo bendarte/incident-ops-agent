@@ -41,6 +41,7 @@ Kort sagt: den demonstrerar inte bara “att modellen svarar”, utan hur man by
 3. Annars ReAct-agent med verktyg.
 4. Tool policy enforcement (allowlist, exfiltration-check, intent-check, `confirm=True` för mutationer).
 5. Output guardrail innan svar returneras.
+6. Om RAG-verktyget returnerar källor visas de i slutsvaret.
 
 ## Kom igång
 

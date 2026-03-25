@@ -170,16 +170,31 @@ class ToolUsageLogger(BaseCallbackHandler):
 
     def __init__(self, user_input: str) -> None:
         self._user_input = user_input
+        self._sources: list[str] = []
+        self._used_tools: list[str] = []
 
     def on_tool_start(self, serialized, input_str, **kwargs):
         tool_name = serialized.get("name")
         enforce_tool_policy(tool_name=tool_name, tool_input=str(input_str), user_input=self._user_input)
+        self._used_tools.append(tool_name)
         print(f"\n[Verktyg använt]: {tool_name} med input: {input_str}")
         emit_event("tool_start", tool=tool_name, input=str(input_str))
 
     def on_tool_end(self, output, **kwargs):
         print(f"[Verktygsutdata]: {output}")
-        emit_event("tool_end", output=str(output))
+        sources = extract_sources_from_tool_output(str(output))
+        for source in sources:
+            if source not in self._sources:
+                self._sources.append(source)
+        emit_event("tool_end", output=str(output), sources=sources)
+
+    @property
+    def sources(self) -> list[str]:
+        return list(self._sources)
+
+    @property
+    def used_tools(self) -> list[str]:
+        return list(self._used_tools)
 
 
 def setup_environment():
@@ -268,6 +283,20 @@ def extract_sources_from_tool_output(tool_output: str) -> list[str]:
     return [s.strip() for s in tail.split(",") if s.strip()]
 
 
+def _source_label_for_llm_response(sources: list[str], used_tools: list[str]) -> str:
+    if sources:
+        return ", ".join(sources)
+    if used_tools:
+        return "Ej tillampligt (inga kallfiler returnerades av verktygen)"
+    return "Ej tillampligt (ingen verktygsanvandning)"
+
+
+def _reliability_label_for_llm_response(sources: list[str]) -> str:
+    if sources:
+        return "Medel-hog (RAG med explicita kallor)"
+    return "Medel (demo-heuristik)"
+
+
 def run_agent_interaction(agent_executor, user_input, chat_history, tool_names_str, format_instructions):
     if not input_guardrail(user_input):
         print("[Agent]: Din fråga blockerades av input-guardrail. Formulera om och försök igen.")
@@ -314,13 +343,14 @@ def run_agent_interaction(agent_executor, user_input, chat_history, tool_names_s
             emit_event("guardrail_blocked", stage="output", route="llm")
             agent_response = "Jag kan inte ge den informationen på grund av guardrail-policy."
 
-        print(f"\n[Agentens slutsvar]: {agent_response}")
+        sources = tool_logger.sources
+        source_label = _source_label_for_llm_response(sources, tool_logger.used_tools)
+        reliability_label = _reliability_label_for_llm_response(sources)
 
-        # Best-effort sources: if the last tool output printed by callback includes [SOURCES],
-        # you can also wire a richer callback later. For now, we keep placeholders.
-        print("[Källa]: Se tool-utdata (RAG skriver [SOURCES])")
-        print("[Tillförlitlighet]: Medel (demo-heuristik)")
-        emit_event("agent_response", route="llm")
+        print(f"\n[Agentens slutsvar]: {agent_response}")
+        print(f"[Källa]: {source_label}")
+        print(f"[Tillförlitlighet]: {reliability_label}")
+        emit_event("agent_response", route="llm", sources=sources, tools=tool_logger.used_tools)
 
         return agent_response
 

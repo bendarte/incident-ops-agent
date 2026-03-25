@@ -66,16 +66,32 @@ class RagTool:
         index_file = self._index_dir / "index.faiss"
         store_file = self._index_dir / "index.pkl"
         if index_file.exists() and store_file.exists():
+            # Säkerhetscheck: index-filen måste ligga inom projektmappen.
+            # allow_dangerous_deserialization=True krävs av FAISS (pickle-format).
+            # Risken är acceptabel enbart om indexet är lokalt auto-genererat från corpus/.
+            # Ladda aldrig ett index från opålitlig källa.
+            try:
+                index_file.resolve().relative_to(self._root.resolve())
+            except ValueError:
+                raise RuntimeError(
+                    f"FAISS-indexet ligger utanför projektmappen ({self._index_dir}). "
+                    "Laddning avbruten av säkerhetsskäl."
+                )
+            print(
+                "[RAG] Laddar FAISS-index med pickle-deserialisering. "
+                "Indexet förväntas vara auto-genererat från corpus/ — ladda aldrig "
+                "ett index från opålitlig källa."
+            )
             try:
                 self._vectorstore = FAISS.load_local(
                     faiss_path,
                     embeddings,
-                    allow_dangerous_deserialization=True,  # FAISS uses pickle
+                    allow_dangerous_deserialization=True,  # FAISS kräver pickle; index är lokalt/auto-genererat
                 )
             except Exception as e:
                 raise RuntimeError(
-                    f"Failed to load FAISS index from '{self._index_dir}'. "
-                    "Delete '.faiss_index/' and retry to rebuild."
+                    f"Kunde inte ladda FAISS-indexet från '{self._index_dir}'. "
+                    "Ta bort '.faiss_index/' och kör igen för att bygga om det."
                 ) from e
             return self._vectorstore
 
