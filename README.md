@@ -36,6 +36,28 @@ Det viktiga här är inte bara att modellen kan svara, utan att agenten är styr
 - Interaktiv chat: `python3 main.py chat`
 - Lokala skärmfilmer: `demos/osman_demo_2.mov`, `demos/Osman_demo_1.mov`
 
+## Screenshots
+
+### RAG med källor
+
+![RAG med källor](docs/screenshots/01-rag-with-sources.png)
+
+### Guardrail-blockering
+
+![Guardrail-blockering](docs/screenshots/02-guardrail-blocking.png)
+
+### Ticket creation
+
+![Ticket creation](docs/screenshots/03-ticket-creation.png)
+
+### Ticket update
+
+![Ticket update](docs/screenshots/04-ticket-update.png)
+
+### Quality checks
+
+![Quality checks](docs/screenshots/05-quality-checks.png)
+
 Rekommenderad demoordning i intervju:
 
 1. RAG med källor
