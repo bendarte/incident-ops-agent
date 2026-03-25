@@ -1,8 +1,8 @@
 # Incident/Ops CLI Agent (LangChain ReAct + Guardrails)
 
-Produktionsnära AI-agent för Incident/Ops med två kontrollvägar:
+Portfolioprojekt för Incident/Ops med två kontrollvägar:
 
-- Deterministisk routing för enkla och säkra operationer (`calculate`, `status INC-x`)
+- Deterministisk routing för enkla och säkra operationer (`calculate`, `status INC-x`, explicit ticket update med `confirm=True`)
 - LLM-baserad ReAct-agent för resonemang och verktygsanvändning
 
 Målet är en stabil, förklarbar och demo-vänlig agent.
@@ -24,7 +24,7 @@ Det här projektet visar praktiska delar som ofta efterfrågas i AI Engineer/App
 - Systemdesign: `TicketAdapter` gör att mock-backend kan bytas mot Jira/ServiceNow utan att ändra agentens kärnflöde.
 - Driftbarhet: strukturerad observability (`route_selected`, `tool_start`, `guardrail_blocked`, etc.) för felsökning och audit.
 
-Kort sagt: den demonstrerar inte bara “att modellen svarar”, utan hur man bygger en kontrollerad AI-agent som går att drifta.
+Kort sagt: den demonstrerar inte bara “att modellen svarar”, utan hur man bygger en kontrollerad AI-agent som är intervju- och demo-vänlig.
 
 ## Arkitektur
 
@@ -57,6 +57,8 @@ Skapa `.env` i projektroten:
 ```env
 OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-4o-mini
+OPS_MAX_ITERATIONS=12
+OPS_MAX_EXECUTION_SECONDS=20
 ```
 
 ## Körning
